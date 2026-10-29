@@ -1,4 +1,4 @@
-"""日本時間（JST）の月・週（月曜〜日曜）の扱い。"""
+"""日本時間（JST）の日・週（月曜〜日曜）・月の扱い。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
 JST = timezone(timedelta(hours=9), "JST")
+WEEKDAYS = "月火水木金土日"
+KINDS = ("daily", "weekly", "monthly")
+KIND_LABELS = {"daily": "日次", "weekly": "週次", "monthly": "月次"}
 
 
 def now_jst() -> datetime:
@@ -30,8 +33,8 @@ def to_jst_date(value: str) -> str | None:
 
 @dataclass(frozen=True)
 class Period:
-    kind: str  # "monthly" | "weekly"
-    key: str  # "2026-11" | "2026-W45"
+    kind: str  # "daily" | "weekly" | "monthly"
+    key: str  # "2026-11-03" | "2026-W45" | "2026-11"
     start: date
     end: date  # 最終日（この日を含む）
 
@@ -39,6 +42,8 @@ class Period:
     def label(self) -> str:
         if self.kind == "monthly":
             return f"{self.start.year}年{self.start.month}月"
+        if self.kind == "daily":
+            return f"{self.start.year}年{self.start.month}月{self.start.day}日（{WEEKDAYS[self.start.weekday()]}）"
         year, week = self.key.split("-W")
         return (f"{year}年第{int(week)}週（{self.start.month}/{self.start.day}〜"
                 f"{self.end.month}/{self.end.day}）")
@@ -54,6 +59,10 @@ class Period:
             end_dt = now
         end = end_dt.strftime("%Y-%m-%dT%H:%M:%S.000+09:00")
         return start, end
+
+
+def day_of(d: date) -> Period:
+    return Period("daily", d.isoformat(), d, d)
 
 
 def month(year: int, mon: int) -> Period:
@@ -81,6 +90,21 @@ def first_week(start_month: str) -> Period:
     m = parse_month(start_month)
     d = m.start + timedelta(days=(7 - m.start.weekday()) % 7)
     return week_of(d)
+
+
+def of(kind: str, d: date) -> Period:
+    """d を含む、その種類の期間。"""
+    return {"daily": day_of, "weekly": week_of, "monthly": month_of}[kind](d)
+
+
+def closed_days(start_month: str, today: date) -> list[Period]:
+    """開始月の1日から、昨日までの各日。"""
+    out = []
+    d = parse_month(start_month).start
+    while d < today:
+        out.append(day_of(d))
+        d += timedelta(days=1)
+    return out
 
 
 def closed_months(start_month: str, today: date) -> list[Period]:

@@ -4,7 +4,7 @@
   --now           現在時刻を指定する（例：2026-11-20T10:00+09:00）。確定処理の確認用
   --out           サイトの出力先（既定：_site）
   --archive       確定データの保存先（既定：archive。--sample のときは .cache/sample-archive）
-  --no-finalize   週・月の確定をしない
+  --no-finalize   日・週・月の確定をしない
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import archive, config, periods
-from .build import build_month
+from .build import build_period
 from .collect import Sources
 from .http import HttpFetcher
 from .site import generate
@@ -41,7 +41,7 @@ def make_sources(cfg: dict, args, now: datetime) -> Sources:
         fetcher = sample.SampleFetcher(sample.universe(), now)
         tmp = Path(tempfile.mkdtemp(prefix="poc-sample-"))
         sample.write_poc_tree(sample.universe(), tmp, now)
-        return Sources(cfg, fetcher, lambda: poc_src.scan(tmp), cache_dir=None)
+        return Sources(cfg, fetcher, lambda: poc_src.scan(tmp), cache_dir=None, now=now)
 
     http = cfg["http"]
     fetcher = HttpFetcher(retries=int(http["retries"]), timeout=float(http["timeout"]), user_agent=http["user_agent"])
@@ -50,7 +50,8 @@ def make_sources(cfg: dict, args, now: datetime) -> Sources:
     def load_poc():
         return poc_src.scan(poc_src.clone(cfg["poc"]["repo_url"], cache / "PoC-in-GitHub"))
 
-    return Sources(cfg, fetcher, load_poc, api_key=os.environ.get("NVD_API_KEY") or None, cache_dir=cache / "nvd")
+    return Sources(cfg, fetcher, load_poc, api_key=os.environ.get("NVD_API_KEY") or None, cache_dir=cache / "nvd",
+                   now=now)
 
 
 def run(args) -> int:
@@ -64,13 +65,15 @@ def run(args) -> int:
     src.load()  # 1. データ源の取得（KEV・PoC・EPSS の最新日）
 
     written = []
-    if not args.no_finalize:  # 2. 未確定の週・月を確定
+    if not args.no_finalize:  # 2. 未確定の日・週・月を確定
         written = archive.finalize(src, archive_dir, cfg["schedule"]["start_month"], today, stamp)
 
-    live = build_month(src, periods.month_of(today), today, now=now)  # 3. 今月分
+    # 3. 今日・今週・今月（途中経過）を計算してページ生成
+    live = {k: build_period(src, periods.of(k, today), today) for k in periods.KINDS}
     generate(cfg, Path(args.out), live, archive.load_all(archive_dir), stamp, dict(src.status))
 
-    print(f"今月（{live['key']}）：新規CVE {live['counts']['total']}件 {live['counts']['tiers']}")
+    for k, d in live.items():
+        print(f"{d['label']}（途中経過）：新規CVE {d['counts']['total']}件 {d['counts']['tiers']}")
     print(f"確定：{len(written)}件 {' '.join(Path(w).name for w in written)}")
     print("データ源：" + " / ".join(f"{k}={v}" for k, v in src.status.items()))
     if src.nvd.lookups_skipped:

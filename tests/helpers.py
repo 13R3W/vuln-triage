@@ -19,6 +19,6 @@ def make_sources(now: datetime, entries=None, fail=(), jvn_down=False, cfg=None)
     fetcher = sample.SampleFetcher(entries, now, fail=fail, jvn_down=jvn_down)
     tmp = Path(tempfile.mkdtemp(prefix="poc-test-"))
     sample.write_poc_tree(entries, tmp, now)
-    src = Sources(cfg or CFG, fetcher, lambda: poc_src.scan(tmp))
+    src = Sources(cfg or CFG, fetcher, lambda: poc_src.scan(tmp), now=now)
     src.load()
     return src, fetcher
