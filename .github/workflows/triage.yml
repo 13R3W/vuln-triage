@@ -1,0 +1,75 @@
+name: 脆弱性トリアージ（毎日）
+
+on:
+  schedule:
+    # 毎日1回（UTC 20:17 ＝ 日本時間 5:17 ごろ）。定期実行は遅れることがあるが、時刻に依存する処理はない
+    - cron: "17 20 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # 確定した週・月のデータをコミットする
+  pages: write      # GitHub Pages へのデプロイ
+  id-token: write   # GitHub Pages へのデプロイ
+  actions: write    # ワークフローの再有効化（60日停止の保険）
+
+concurrency:
+  group: triage
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 古いCVEのNVD個別取得結果を次回に持ち越す（無料のActionsキャッシュ）
+      - uses: actions/cache@v4
+        with:
+          path: .cache/nvd
+          key: nvd-${{ github.run_id }}
+          restore-keys: nvd-
+
+      - name: テスト
+        run: python -m unittest discover -s tests -t .
+
+      # 1〜3. データ取得 → 未確定の週・月を確定 → 今月分を計算してページ生成
+      - name: 収集・判定・ページ生成
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: python -m triage run --out _site
+
+      # 4. 確定ファイルが増えていればコミットしてプッシュ
+      - name: 確定データをコミット
+        run: |
+          git add archive
+          if git diff --cached --quiet; then
+            echo "新しく確定したデータはありません"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "確定データを追加 $(TZ=Asia/Tokyo date '+%Y-%m-%d')"
+            git push
+          fi
+
+      # 5. GitHub Pages にデプロイ
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      # 6. ワークフローを API で有効化し直す（60日停止の保険。ダミーコミットは作らない）
+      - name: ワークフローを再有効化
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable triage.yml --repo "${{ github.repository }}" || echo "再有効化に失敗（次回に再試行）"

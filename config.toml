@@ -1,0 +1,58 @@
+# 脆弱性トリアージ・ダッシュボードの設定ファイル
+# サイト名・しきい値・開始月などはここで変更する。
+
+[site]
+# サイト名（未決。決まったらここを書き換える）
+name = "脆弱性トリアージ（仮称）"
+description = "公開データだけで、今月の脆弱性（CVE）を毎日自動で順位付けする観察ツール"
+
+[schedule]
+# 確定アーカイブ（月次・週次）を作り始める月。これより前の月・週は作らない。
+# 最初の週は、この月の1日以降で最初の月曜日から始まる週。
+start_month = "2026-11"
+
+[tiers]
+# A：PoC公開済み かつ EPSS がこの値以上
+a_epss = 0.10
+# B：PoC公開済み または EPSS がこの値以上
+b_epss = 0.01
+
+[display]
+top_cards = 20        # メインのカード表示件数
+resurfaced_max = 20   # 再浮上の最大件数
+summary_chars = 200   # 概要の保存文字数
+
+[nvd]
+base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+interval_no_key = 6.0    # APIキーなし：30秒に5回まで
+interval_with_key = 0.7  # APIキーあり：30秒に50回まで
+page_size = 2000
+# 今月より前に公開されたCVE（再浮上・PoCタブ・週次）の詳細を個別取得する1回あたりの上限件数。
+# 取得結果は .cache/nvd に保存し、Actions のキャッシュで次回に持ち越す。
+lookup_limit = 150           # APIキーなし（6秒間隔なので約15分）
+lookup_limit_with_key = 1000 # APIキーあり（約12分）
+cache_days = 14
+
+[kev]
+url = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+
+[epss]
+base_url = "https://api.first.org/data/v1/epss"
+interval = 1.0
+max_param_chars = 2000
+page_size = 10000
+
+[poc]
+repo_url = "https://github.com/nomi-sec/PoC-in-GitHub.git"
+
+[jvn]
+base_url = "https://jvndb.jvn.jp/myjvn"
+interval = 0.5          # 秒間2回以下
+page_size = 50
+# 今月公開のCVEがJVNに載っているかを調べるとき、月初よりこの日数だけ前から検索する
+lookback_days = 60
+
+[http]
+retries = 3
+timeout = 60
+user_agent = "vuln-triage/1.0 (+https://github.com/)"
