@@ -7,7 +7,6 @@ import shutil
 from html import escape
 from pathlib import Path
 
-from .collect import SOURCES
 from .periods import KIND_LABELS, KINDS, parse_month
 from .tiering import TIERS
 
@@ -76,25 +75,17 @@ def data_path(kind: str, key: str) -> str:
 
 
 class Site:
-    def __init__(self, cfg: dict, out_dir: Path, updated_at: str, status: dict[str, str],
-                 index: dict[str, list[dict]]):
+    def __init__(self, cfg: dict, out_dir: Path, index: dict[str, list[dict]], tiles: str = ""):
         """index：種類ごとの期間一覧（新しい順）。各要素は {"key", "label", "final"}。"""
         self.cfg = cfg
         self.out = Path(out_dir)
-        self.updated_at = updated_at
-        self.status = status
         self.name = cfg["site"]["name"]
         self.index = index
+        self.tiles = tiles  # 全ページ共通の件数タイル（summary_tiles）
 
     # ---- 共通レイアウト ----
     def page(self, rel_path: str, title: str, body: str) -> None:
         root = "../" * rel_path.count("/")
-        status_items = "".join(
-            f'<li class="{"ok" if self.status.get(n) == "ok" else "ng"}" title="{e(self.status.get(n))}">'
-            f'{e(n)}：{"取得成功" if self.status.get(n) == "ok" else "取得失敗"}</li>'
-            for n in SOURCES)
-        latest = "".join(f'<a data-keep-tab href="{root}{page_path(k, self.index[k][0]["key"])}">{KIND_LABELS[k]}</a>'
-                         for k in KINDS if self.index.get(k))
         html = f"""<!doctype html>
 <html lang="ja">
 <head>
@@ -107,13 +98,10 @@ class Site:
 <body>
 <header class="site"><div class="wrap">
 <a class="name" href="{root}index.html">{e(self.name)}</a>
-<nav>{latest}<a href="{root}archive.html">アーカイブ</a><a href="{root}method.html">この順位の付け方</a></nav>
+<nav><a href="{root}archive.html">アーカイブ</a><a href="{root}method.html">この順位の付け方</a></nav>
 </div></header>
 <main class="wrap">
-<div class="updated">最終更新：{e(self.updated_at)}（日本時間）</div>
-<ul class="sources" aria-label="今回のデータ取得状況">{status_items}</ul>
 {body}
-<footer>公開データ（NVD・CISA KEV・FIRST EPSS・PoC-in-GitHub・JVN iPedia）を毎日自動で集計しています。手作業による判断・コメントは入っていません。PoC へのリンクは置かず、CVE は NVD のページにリンクしています。概要は NVD の原文（英語）です。</footer>
 </main>
 <script src="{root}assets/app.js"></script>
 </body>
@@ -186,8 +174,6 @@ class Site:
             out.append("CISA KEV の取得に失敗したため、KEV 掲載が反映されていません。")
         if st.get("PoC", "ok") != "ok":
             out.append("PoC-in-GitHub の取得に失敗したため、PoC 情報が反映されていません。")
-        if st.get("JVN", "ok") != "ok":
-            out.append("JVN iPedia の取得に失敗したため、JVN 掲載の有無は確認できていません（「JVN確認不可」と表示）。")
         return "".join(f'<div class="notice err">{e(m)}</div>' for m in out)
 
     @staticmethod
@@ -218,25 +204,13 @@ class Site:
         return f'<div class="tablewrap"><table><thead><tr>{th}</tr></thead><tbody>{body}</tbody></table></div>'
 
     # ---- 日次・週次・月次のページ（すべて同じ作り） ----
-    def period_page(self, rel_path: str, data: dict, json_path: str, note: str = "") -> None:
+    def period_page(self, rel_path: str, data: dict, json_path: str) -> None:
         root = "../" * rel_path.count("/")
         kind = data["kind"]
         word = PERIOD_WORD[kind][0 if data.get("final") else 1]
         jvn_failed = data.get("sources", {}).get("JVN", "ok") != "ok"
         top_n = int(self.cfg["display"].get("top_cards", 20))
-        c = data["counts"]
         mv = data["movement"]
-        if data.get("final"):
-            state = f"確定版（{e(data.get('finalized_at', ''))} 確定、基準日 {e(data['as_of'])}）"
-        else:
-            state = f"途中経過（基準日 {e(data['as_of'])}。期間が終わると確定します）"
-        jm = c.get("jvn_missing")
-        stats = (f'<div class="stat"><b>{c["total"]}</b><span>{word}公開の新規CVE</span></div>'
-                 + "".join(f'<div class="stat"><b>{c["tiers"][t]}</b><span>{tier_badge(t)} ティア</span></div>'
-                           for t in TIERS)
-                 + f'<div class="stat"><b>{"—" if jm is None else jm}</b><span>JVN未掲載</span></div>'
-                 f'<div class="stat"><b>{len(mv["kev_added"])}</b><span>KEV追加</span></div>'
-                 f'<div class="stat"><b>{len(mv["new_sa"])}</b><span>新たにS/A入り</span></div>')
 
         cards = "".join(self.card(i + 1, r, jvn_failed) for i, r in enumerate(data["main"][:top_n]))
         tier_boxes = "".join(f'<label><input type="checkbox" name="tier" value="{t}" checked> {t}</label>'
@@ -296,10 +270,8 @@ class Site:
         title = f"{data['label']}版" if kind == "monthly" else data["label"]
         body = f"""
 <h1>{e(title)} ランキング</h1>
-<p class="lead">{state}。EPSS {e(data.get("epss_date") or "—")} 時点（7日前比は {e(data.get("epss_prev_date") or "—")} との差）。</p>
-{note}
 {self.source_notices(data)}
-<div class="summary-row">{stats}</div>
+<div class="summary-row">{self.tiles}</div>
 <div data-tabs>
 <div class="tabs" role="tablist">
 <button type="button" role="tab" data-tab="ranking">ランキング</button>
@@ -365,7 +337,7 @@ class Site:
 <li>CVSS の深刻度は JVN と同じ呼び方（緊急・重要・警告・注意）で表示します。概要は NVD の原文（英語）です。</li>
 </ul>
 <h2>集計の単位</h2>
-<p>日次（日本時間の1日）・週次（月曜〜日曜）・月次の3種類を、同じ作りで公開しています。各ページ上部のボタンとプルダウンで切り替えられます。期間が終わった後の最初の実行で確定します。</p>
+<p>日次（日本時間の1日）・週次（月曜〜日曜）・月次の3種類を、同じ作りで公開しています。各ページのタブの下のボタンとプルダウンで切り替えられます（開いているタブのまま切り替わります）。期間が終わった後の最初の実行で確定します。</p>
 {self.table(["タブ", "内容"], [
             ["ランキング", "その期間に NVD で公開された CVE（取り下げ分を除く）を、ティア→EPSS の順に並べたもの"],
             ["再浮上", "その期間より前に公開された CVE のうち、期間内に KEV に追加された、または初めて PoC が出たもの。順位は付けず EPSS 順"],
@@ -381,13 +353,32 @@ class Site:
             ["PoC", "nomi-sec/PoC-in-GitHub", "メタデータのみ使用。最も古い作成日時を「PoC初出日」、件数を「リポジトリ数」とする。PoC 本体はダウンロード・実行しない。存在しない CVE 番号の登録があるため、EPSS スコアがある（または NVD に掲載された）CVE だけ採用"],
             ["日本向け情報", "JVN iPedia（MyJVN API）", "JVN に掲載されているかどうか"],
         ])}
-<p>データ源が一時的に取得できなかった回は、そのデータ源を「取得失敗」と表示して続行します。必須のデータ源（NVD・KEV・EPSS・PoC）が取得できなかった回は、日・週・月の確定を次回に見送ります。</p>
+<p>データ源が一時的に取得できなかった回は、今日・今週・今月のページに同じ期間の前回取得できたデータを表示します（前回分が無いときは取得失敗の注意を出します）。必須のデータ源（NVD・KEV・EPSS・PoC）が取得できなかった回は、日・週・月の確定を次回に見送ります。</p>
 """
         self.page("method.html", "この順位の付け方", body)
 
 
-def generate(cfg: dict, out_dir: Path, live: dict[str, dict], archives: dict[str, list[dict]], updated_at: str,
-             status: dict[str, str]) -> None:
+def summary_tiles(live: dict[str, dict]) -> str:
+    """ページ上部の件数タイル。どのページでも同じ並び・同じ値（今日・今月の途中経過）にする。
+
+    左から：今日公開・今月公開・S・A・B・JVN未掲載・KEV追加・新たにS/A入り（今日公開以外は今月の件数）。
+    """
+    day, month = live.get("daily"), live.get("monthly")
+    if not (day and month):
+        return ""
+    c = month["counts"]
+    jm = c.get("jvn_missing")
+    # (値, 表示する見出し, マウスを載せたときの説明)
+    items = [(day["counts"]["total"], "今日公開", "今日（日本時間）公開の新規CVE"),
+             (c["total"], "今月公開", "今月公開の新規CVE")]
+    items += [(c["tiers"][t], f"{tier_badge(t)}ティア", f"今月公開のうち {t} ティア") for t in ("S", "A", "B")]
+    items += [("—" if jm is None else jm, "JVN未掲載", "今月公開のうち JVN 未掲載（JVN 取得失敗時は —）"),
+              (len(month["movement"]["kev_added"]), "KEV追加", "今月 KEV に追加された CVE"),
+              (len(month["movement"]["new_sa"]), "新たにS/A", "今月新たに S/A ティアに入った CVE")]
+    return "".join(f'<div class="stat" title="{e(tip)}"><b>{v}</b><span>{label}</span></div>' for v, label, tip in items)
+
+
+def generate(cfg: dict, out_dir: Path, live: dict[str, dict], archives: dict[str, list[dict]]) -> None:
     """live：種類ごとの途中経過（今日・今週・今月）。archives：種類ごとの確定データ。"""
     out_dir = Path(out_dir)
     if out_dir.exists():
@@ -402,19 +393,14 @@ def generate(cfg: dict, out_dir: Path, live: dict[str, dict], archives: dict[str
         index[kind] = [{"key": d["key"], "label": d["label"], "final": d.get("final", False)} for d in items]
         pages.extend(items)
 
-    site = Site(cfg, out_dir, updated_at, status, index)
+    site = Site(cfg, out_dir, index, summary_tiles(live))
     site.copy_static()
-    start = parse_month(cfg["schedule"]["start_month"]).start.isoformat()
     for d in pages:
-        note = ""
-        if not d.get("final") and d.get("start", d["key"]) < start:
-            note = (f'<div class="notice">開始前のプレビューです。確定版（アーカイブ）は'
-                    f'{parse_month(cfg["schedule"]["start_month"]).label}から作成します。</div>')
         jp = data_path(d["kind"], d["key"])
         site.write_json(jp, d["main"])
-        site.period_page(page_path(d["kind"], d["key"]), d, jp, note)
+        site.period_page(page_path(d["kind"], d["key"]), d, jp)
         if d is live.get("monthly"):
-            site.period_page("index.html", d, jp, note)
+            site.period_page("index.html", d, jp)
     site.archive(archives)
     site.method()
     (out_dir / ".nojekyll").write_text("", encoding="utf-8")

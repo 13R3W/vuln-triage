@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import unittest
 from datetime import date
@@ -274,7 +275,7 @@ class SiteTest(unittest.TestCase):
         if finalize:
             archive.finalize(src, arch, "2026-11", now.date(), now.strftime("%Y-%m-%d %H:%M"))
         live = {k: build_period(src, periods.of(k, now.date()), now.date()) for k in periods.KINDS}
-        generate(CFG, out, live, archive.load_all(arch), now.strftime("%Y-%m-%d %H:%M"), dict(src.status))
+        generate(CFG, out, live, archive.load_all(arch))
         return out, arch
 
     def test_generate(self):
@@ -285,8 +286,17 @@ class SiteTest(unittest.TestCase):
             self.assertTrue((out / p).exists(), p)
         for p in out.rglob("*.html"):
             html = p.read_text()
-            self.assertIn("最終更新：2026-12-02 10:00（日本時間）", html, p)
-            self.assertIn("JVN：取得失敗", html, p)
+            # 消した表示：ヘッダーの日次・週次・月次リンク、最終更新、取得状況、フッター文、JVN の注意文
+            self.assertNotIn("最終更新", html, p)
+            self.assertNotIn("取得成功", html, p)
+            self.assertNotIn("JVN：取得失敗", html, p)
+            self.assertNotIn("<footer>", html, p)
+            self.assertNotIn("JVN iPedia の取得に失敗", html, p)
+            if p.name not in ("method.html", "archive.html"):
+                self.assertNotIn("基準日", html, p)
+            header = html[html.index('<header class="site">'):html.index("</header>")]
+            self.assertNotIn("日次", header, p)
+            self.assertIn("アーカイブ", header, p)
         month = (out / "monthly" / "2026-11.html").read_text()
         self.assertIn("JVN確認不可", month)
         self.assertIn("https://nvd.nist.gov/vuln/detail/CVE-2024-50001", month)
@@ -305,6 +315,33 @@ class SiteTest(unittest.TestCase):
         archive_html = (out / "archive.html").read_text()
         for link in ("weekly/2026-W45.html", "monthly/2026-11.html", "daily/2026-11-03.html"):
             self.assertIn(link, archive_html)
+
+    def test_summary_tiles_fixed(self):
+        now = jst("2026-12-02T10:00")
+        out, _ = self.build(now)
+        src, _ = make_sources(now)
+        day = build_period(src, periods.day_of(now.date()), now.date())
+        month = build_period(src, periods.month_of(now.date()), now.date())
+
+        def tiles(path):
+            html = (out / path).read_text()
+            a = html.index('<div class="summary-row">')
+            return html[a:html.index("</div>\n", html.index('<div data-tabs>') - 20)]
+
+        pages = ["index.html", "daily/2026-12-02.html", "daily/2026-11-03.html", "weekly/2026-W45.html",
+                 "weekly/2026-W49.html", "monthly/2026-11.html", "monthly/2026-12.html"]
+        first = tiles(pages[0])
+        for p in pages[1:]:
+            self.assertEqual(tiles(p), first, p)  # どのページでも同じ
+        labels = ["今日公開", "今月公開", "tier-S", "tier-A", "tier-B", "JVN未掲載", "KEV追加", "新たにS/A"]
+        pos = [first.index(l) for l in labels]
+        self.assertEqual(pos, sorted(pos))  # 左から指定の並び
+        self.assertNotIn("tier-C", first)
+        self.assertNotIn("今週公開", first)
+        c = month["counts"]
+        values = [day["counts"]["total"], c["total"], c["tiers"]["S"], c["tiers"]["A"], c["tiers"]["B"],
+                  c["jvn_missing"], len(month["movement"]["kev_added"]), len(month["movement"]["new_sa"])]
+        self.assertEqual(re.findall(r"<b>([^<]*)</b>", first), [str(v) for v in values])
 
     def test_switcher(self):
         out, _ = self.build(jst("2026-12-02T10:00"))
@@ -329,7 +366,7 @@ class SiteTest(unittest.TestCase):
         out = Path(tempfile.mkdtemp()) / "site"
         src, _ = make_sources(now, fail={"services.nvd.nist.gov"})
         live = {k: build_period(src, periods.of(k, now.date()), now.date()) for k in periods.KINDS}
-        generate(CFG, out, live, {k: [] for k in periods.KINDS}, "2026-11-20 10:00", dict(src.status))
+        generate(CFG, out, live, {k: [] for k in periods.KINDS})
         html = (out / "index.html").read_text()
         self.assertIn("NVD の取得に失敗したため、この回は表示できません", html)
         self.assertIn('data-empty="NVD の取得に失敗したため', html)
@@ -340,11 +377,10 @@ class SiteTest(unittest.TestCase):
         src, _ = make_sources(now)
         live = {k: build_period(src, periods.of(k, now.date()), now.date()) for k in periods.KINDS}
         live["monthly"]["main"][0]["summary"] = "<script>alert(1)</script>"
-        generate(CFG, out, live, {k: [] for k in periods.KINDS}, "2026-10-29 10:00", dict(src.status))
+        generate(CFG, out, live, {k: [] for k in periods.KINDS})
         html = (out / "index.html").read_text()
-        self.assertIn("開始前のプレビュー", html)
+        self.assertNotIn("開始前のプレビュー", html)  # 表示しない（ユーザーの要望で削除）
         self.assertNotIn("<script>alert(1)", html)
-        self.assertIn("開始前のプレビュー", (out / "daily" / "2026-10-29.html").read_text())
         self.assertIn("まだ確定した週次", (out / "archive.html").read_text())
 
 

@@ -74,7 +74,7 @@ def run(args) -> int:
     # 取得に失敗した回は、同じ日・週・月の前回成功分を表示する
     live_dir = Path(args.live_cache or (ROOT / ".cache" / ("sample-live" if args.sample else "live")))
     live = live_cache.apply(live, src.required_ok(), stamp, dict(src.status), live_dir)
-    generate(cfg, Path(args.out), live, archive.load_all(archive_dir), stamp, dict(src.status))
+    generate(cfg, Path(args.out), live, archive.load_all(archive_dir))
 
     for k, d in live.items():
         note = f"（取得失敗のため {d['fetched_at']} 取得分を表示）" if d.get("fallback") else ""

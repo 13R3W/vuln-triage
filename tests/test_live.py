@@ -85,8 +85,6 @@ class EndToEndTest(unittest.TestCase):
         self.assertIn("更新日時：2026-11-20 10:00（日本時間）", html)
         self.assertIn("今回（2026-11-20 15:00）の取得に失敗したため、前回（2026-11-20 10:00）取得したデータを表示しています。", html)
         self.assertIn("CVE-2026-41001", html)  # 前回のランキングが出ている
-        self.assertIn("最終更新：2026-11-20 15:00", html)  # ヘッダーは今回の実行時刻
-        self.assertIn("NVD：取得失敗", html)  # ヘッダーの取得状況は今回の状態
         self.assertNotIn("この回は表示できません", html)
         # 切り替え（ボタン・プルダウン）はタブ（ランキング〜動き）の下、更新日時はそのすぐ下
         self.assertLess(html.index('data-tab="movement"'), html.index('class="switcher"'))
