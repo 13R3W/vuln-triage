@@ -161,6 +161,20 @@ class Site:
                 f'<noscript><a href="{root}archive.html">期間の一覧</a></noscript></div>')
 
     @staticmethod
+    def updated_line(data: dict) -> str:
+        """切り替えのすぐ下に出す、このページのデータの更新日時（と、前回分を表示しているときの注意）。"""
+        if data.get("final"):
+            line = f"更新日時：{e(data.get('finalized_at') or data['as_of'])}（日本時間・確定）"
+        else:
+            line = f"更新日時：{e(data.get('fetched_at') or '—')}（日本時間）"
+        out = f'<p class="data-updated">{line}</p>'
+        fb = data.get("fallback")
+        if fb:
+            out += (f'<div class="notice">今回（{e(fb["failed_at"])}）の取得に失敗したため、'
+                    f'前回（{e(data.get("fetched_at"))}）取得したデータを表示しています。</div>')
+        return out
+
+    @staticmethod
     def source_notices(data: dict) -> str:
         st = data.get("sources", {})
         out = []
@@ -282,6 +296,7 @@ class Site:
         title = f"{data['label']}版" if kind == "monthly" else data["label"]
         body = f"""
 {self.switcher(root, kind, data["key"])}
+{self.updated_line(data)}
 <h1>{e(title)} ランキング</h1>
 <p class="lead">{state}。EPSS {e(data.get("epss_date") or "—")} 時点（7日前比は {e(data.get("epss_prev_date") or "—")} との差）。</p>
 {note}
