@@ -63,11 +63,25 @@ th { position: sticky; top: 0; background: var(--card); white-space: nowrap; }
 td.num, th.num { text-align: right; white-space: nowrap; }
 a.cve, .nw { white-space: nowrap; }
 td.id { white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-td.sum { min-width: 240px; color: var(--muted); }
+td.sum { min-width: 240px; color: var(--muted); overflow-wrap: anywhere; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 12px 0; font-size: 14px; }
 .filters input[type="search"] { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); width: 260px; max-width: 100%; }
-.more { margin: 12px 0; }
-.more button { font: inherit; padding: 6px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+.switcher { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 16px 0 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
+.seg a { padding: 6px 16px; text-decoration: none; color: var(--fg); border-left: 1px solid var(--line); }
+.seg a:first-child { border-left: 0; }
+.seg a.on { background: var(--link); color: var(--card); font-weight: 600; }
+.sel { font-size: 14px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; max-width: 100%; white-space: nowrap; }
+.sel select { flex: 1 1 auto; font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; max-width: 100%; min-width: 0; }
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 10px 0; font-size: 14px; }
+.pager .range { color: var(--muted); }
+.pager .pages { display: flex; flex-wrap: wrap; gap: 4px; }
+.pager button { font: inherit; min-width: 36px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+.pager button.on { background: var(--link); border-color: var(--link); color: var(--card); font-weight: 600; }
+.pager button:disabled { opacity: .4; cursor: default; }
+.pager .gap { padding: 4px 2px; color: var(--muted); }
+details { margin: 4px 0; }
+details summary { cursor: pointer; }
 .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
 ul.plain { padding-left: 20px; }
 footer { color: var(--muted); font-size: 12px; margin: 40px 0 24px; border-top: 1px solid var(--line); padding-top: 12px; }

@@ -200,8 +200,8 @@ class SampleFetcher:
         else:
             start = datetime.fromisoformat(p["pubStartDate"])
             end = datetime.fromisoformat(p["pubEndDate"])
-            if end - start > timedelta(days=120):
-                raise FetchError("services.nvd.nist.gov: HTTP 404（期間が120日を超えています）")
+            if end < start or end - start > timedelta(days=120):
+                raise FetchError("services.nvd.nist.gov: HTTP 404（期間の指定が不正、または120日を超えています）")
             hits = [e for e in self.entries if start <= _utc(e["published"]) <= end
                     and not (p.get("noRejected") and e.get("rejected"))]
             hits.sort(key=lambda e: (e["published"], e["id"]))

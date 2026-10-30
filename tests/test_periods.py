@@ -24,6 +24,23 @@ class PeriodTest(unittest.TestCase):
         self.assertEqual((w.key, w.start, w.end), ("2026-W45", date(2026, 11, 2), date(2026, 11, 8)))
         self.assertIn("第45週", w.label)
 
+    def test_day(self):
+        d = periods.day_of(date(2026, 11, 3))
+        self.assertEqual((d.kind, d.key, d.start, d.end), ("daily", "2026-11-03", date(2026, 11, 3), date(2026, 11, 3)))
+        self.assertEqual(d.label, "2026年11月3日（火）")
+        self.assertEqual(d.nvd_range(), ("2026-11-03T00:00:00.000+09:00", "2026-11-03T23:59:59.000+09:00"))
+        self.assertTrue(d.contains("2026-11-03"))
+        self.assertFalse(d.contains("2026-11-04"))
+        self.assertEqual(periods.of("weekly", date(2026, 11, 3)).key, "2026-W45")
+        self.assertEqual(periods.of("monthly", date(2026, 11, 3)).key, "2026-11")
+
+    def test_closed_days(self):
+        self.assertEqual(periods.closed_days("2026-11", date(2026, 11, 1)), [])  # 当日は含まない
+        self.assertEqual([d.key for d in periods.closed_days("2026-11", date(2026, 11, 3))],
+                         ["2026-11-01", "2026-11-02"])
+        self.assertEqual(periods.closed_days("2026-11", date(2026, 10, 29)), [])
+        self.assertEqual(len(periods.closed_days("2026-11", date(2026, 12, 2))), 31)
+
     def test_closed_periods(self):
         # 日曜（11/8）の時点では第45週はまだ終わっていない
         self.assertEqual(periods.closed_weeks("2026-11", date(2026, 11, 8)), [])

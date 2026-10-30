@@ -9,18 +9,19 @@ from __future__ import annotations
 import sys
 from datetime import date, timedelta
 
+from . import periods
 from .sources import epss as epss_src
 from .sources import jvn as jvn_src
 from .sources import kev as kev_src
 from .sources import nvd as nvd_src
 
 SOURCES = ("NVD", "KEV", "EPSS", "PoC", "JVN")
-# これらのどれかが失敗した回は、週・月の確定をしない（次の実行で追いつく）
+# これらのどれかが失敗した回は、日・週・月の確定をしない（次の実行で追いつく）
 REQUIRED = ("NVD", "KEV", "EPSS", "PoC")
 
 
 class Sources:
-    def __init__(self, cfg: dict, fetcher, poc_loader, api_key: str | None = None, cache_dir=None):
+    def __init__(self, cfg: dict, fetcher, poc_loader, api_key: str | None = None, cache_dir=None, now=None):
         self.cfg = cfg
         self.fetcher = fetcher
         self.poc_loader = poc_loader
@@ -33,7 +34,9 @@ class Sources:
         self.kev: dict[str, str] = {}
         self.poc: dict[str, dict] = {}
         self.epss_latest: str | None = None
+        self.now = now  # 途中経過の期間で、NVD の検索範囲の終わりをここまでにする
         self.records: dict[str, dict] = {}  # NVD から得た CVE の詳細（同じ回の中で使い回す）
+        self._month_recs: dict[str, list[dict] | None] = {}  # 月ごとの公開分（NVD は月単位で1回だけ取る）
         self._epss_cache: dict[tuple[str, str | None], float | None] = {}
         self._above_cache: dict[tuple[float, str], set[str]] = {}
         self._jvn_cache: dict[tuple[date, date], set[str] | None] = {}
@@ -66,24 +69,32 @@ class Sources:
             self.fail("EPSS", e)
 
     # ---- NVD ----
-    def nvd_published(self, period, now=None) -> list[dict]:
-        start, end = period.nvd_range(now)
-        try:
-            recs = self.nvd.published(start, end)
-        except Exception as e:  # noqa: BLE001
-            self.fail("NVD", e)
-            return []
-        for r in recs:
-            self.records[r["id"]] = r
-        return recs
+    def _month(self, month) -> list[dict]:
+        if month.key not in self._month_recs:
+            recs = None
+            if self.now is not None and month.start > self.now.date():
+                recs = []  # まだ始まっていない月（今週が翌月にまたがる場合など）は問い合わせない
+            elif self.ok("NVD"):
+                try:
+                    recs = self.nvd.published(*month.nvd_range(self.now))
+                except Exception as e:  # noqa: BLE001
+                    self.fail("NVD", e)
+            self._month_recs[month.key] = recs
+            for r in recs or []:
+                self.records[r["id"]] = r
+        return self._month_recs[month.key] or []
 
-    def nvd_count(self, period, now=None) -> int | None:
-        start, end = period.nvd_range(now)
-        try:
-            return self.nvd.count(start, end)
-        except Exception as e:  # noqa: BLE001
-            self.fail("NVD", e)
-            return None
+    def published_in(self, period) -> list[dict]:
+        """period（日本時間）に公開された CVE（取り下げ分を除く）。
+
+        NVD は月単位でまとめて1回だけ取り、日・週はその中から公開日で絞る。
+        """
+        out = []
+        m = periods.month_of(period.start)
+        while m.start <= period.end:
+            out.extend(r for r in self._month(m) if period.contains(r["published"]))
+            m = periods.month_of(m.end + timedelta(days=1))
+        return out
 
     def details(self, ids) -> dict[str, dict]:
         """CVE の詳細（概要・CVSS・CWE・公開日）。この回で取得済みのものは使い回す。"""

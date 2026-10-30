@@ -94,11 +94,6 @@ class NvdClient:
             if not items or index >= int(data.get("totalResults", 0)):
                 return out
 
-    def count(self, start: str, end: str) -> int:
-        data = self._get({"pubStartDate": start, "pubEndDate": end, "resultsPerPage": 1,
-                          "startIndex": 0, "noRejected": True})
-        return int(data.get("totalResults", 0))
-
     # ---- 個別取得（キャッシュつき） ----
     def _cache_path(self, cve_id: str) -> Path | None:
         return self.cache_dir / f"{cve_id}.json" if self.cache_dir else None

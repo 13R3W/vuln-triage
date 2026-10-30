@@ -1,6 +1,11 @@
-// タブ切替と、全件表の検索・絞り込み（外部ライブラリなし）
+// タブ切替、期間のプルダウン、全件表の検索・絞り込み・ページ送り（外部ライブラリなし）
 (function () {
   document.documentElement.classList.add("js");
+
+  // 期間のプルダウン：選んだらそのページへ移動
+  document.querySelectorAll("select[data-nav]").forEach(function (sel) {
+    sel.addEventListener("change", function () { location.href = sel.value; });
+  });
 
   document.querySelectorAll("[data-tabs]").forEach(function (box) {
     var buttons = box.querySelectorAll(".tabs button");
@@ -27,6 +32,7 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+  function nw(s) { return '<span class="nw">' + esc(s) + "</span>"; }
   function pct(v) { return v == null ? "—" : (v * 100).toFixed(2) + "%"; }
   function delta(v) {
     if (v == null) return "—";
@@ -34,50 +40,104 @@
     if (Math.abs(pt) < 0.005) return "±0";
     return '<span class="' + (pt > 0 ? "up" : "down") + '">' + (pt > 0 ? "+" : "") + pt.toFixed(2) + "pt</span>";
   }
+  function num(n) { return n.toLocaleString("ja-JP"); }
+
+  // ページ番号の並び：1 … 4 5 [6] 7 8 … 165
+  function pageList(cur, last) {
+    var out = [], from = Math.max(2, cur - 2), to = Math.min(last - 1, cur + 2);
+    out.push(1);
+    if (from > 2) out.push("…");
+    for (var i = from; i <= to; i++) out.push(i);
+    if (to < last - 1) out.push("…");
+    if (last > 1) out.push(last);
+    return out;
+  }
+
+  var PER_PAGE = 100;
 
   document.querySelectorAll("[data-fulltable]").forEach(function (box) {
     var url = box.dataset.fulltable;
     var tbody = box.querySelector("tbody");
+    var table = box.querySelector(".tablewrap");
     var q = box.querySelector("input[type=search]");
     var tiers = box.querySelectorAll("input[name=tier]");
     var jvnOnly = box.querySelector("input[name=jvn]");
-    var countEl = box.querySelector(".count");
-    var moreBtn = box.querySelector(".more button");
-    var rows = [], limit = 100;
+    var pagers = box.querySelectorAll(".pager");
+    var rows = [], hit = [], page = 1, loaded = false;
 
-    function render() {
+    function filter() {
       var words = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
       var allowed = {};
       tiers.forEach(function (t) { allowed[t.value] = t.checked; });
-      var hit = rows.filter(function (r) {
+      hit = rows.filter(function (r) {
         if (!allowed[r.tier]) return false;
         if (jvnOnly && jvnOnly.checked && r.jvn !== false) return false;
         if (!words.length) return true;
         var hay = (r.id + " " + (r.summary || "") + " " + (r.cwe || []).join(" ")).toLowerCase();
         return words.every(function (w) { return hay.indexOf(w) >= 0; });
       });
-      countEl.textContent = hit.length + " 件";
-      tbody.innerHTML = hit.slice(0, limit).map(function (r) {
+      page = 1;
+    }
+
+    function renderPager() {
+      var last = Math.max(1, Math.ceil(hit.length / PER_PAGE));
+      var from = hit.length ? (page - 1) * PER_PAGE + 1 : 0;
+      var to = Math.min(page * PER_PAGE, hit.length);
+      var html = '<span class="range">全' + num(hit.length) + "件" + (hit.length ? "中 " + num(from) + "〜" + num(to) + "件" : "") + "</span>";
+      if (last > 1) {
+        html += '<span class="pages">';
+        html += '<button type="button" data-page="' + (page - 1) + '"' + (page === 1 ? " disabled" : "") + ">« 前へ</button>";
+        pageList(page, last).forEach(function (p) {
+          html += p === "…" ? '<span class="gap">…</span>'
+            : '<button type="button" data-page="' + p + '"' + (p === page ? ' class="on" aria-current="page"' : "") + ">" + p + "</button>";
+        });
+        html += '<button type="button" data-page="' + (page + 1) + '"' + (page === last ? " disabled" : "") + ">次へ »</button>";
+        html += "</span>";
+      }
+      pagers.forEach(function (p) { p.innerHTML = html; });
+    }
+
+    function renderRows() {
+      var start = (page - 1) * PER_PAGE;
+      tbody.innerHTML = hit.slice(start, start + PER_PAGE).map(function (r) {
         var flags = r.jvn === false ? ' <span class="flag">JVN未掲載</span>' : "";
         return "<tr><td class=num>" + r.rank + '</td><td><span class="tier tier-' + r.tier + '">' + r.tier +
-          '</span></td><td class=id><a href="https://nvd.nist.gov/vuln/detail/' + esc(r.id) + '" rel="noopener">' + esc(r.id) +
+          '</span></td><td class=id><a class="cve" href="https://nvd.nist.gov/vuln/detail/' + esc(r.id) + '" rel="noopener">' + esc(r.id) +
           "</a>" + flags + "</td><td class=num>" + pct(r.epss) + "</td><td class=num>" + delta(r.epss_delta) +
-          "</td><td class=num>" + (r.cvss == null ? "—" : esc(r.cvss)) + "</td><td>" + esc((r.cwe || []).join(", ") || "—") +
-          "</td><td>" + esc(r.kev || "—") + "</td><td>" + esc(r.poc || "—") + "</td><td>" + esc(r.published || "") +
+          "</td><td class=num>" + (r.cvss == null ? "—" : esc(r.cvss)) + "</td><td>" + ((r.cwe || []).map(nw).join(" ") || "—") +
+          "</td><td>" + nw(r.kev || "—") + "</td><td>" + nw(r.poc || "—") + "</td><td>" + nw(r.published || "") +
           "</td><td class=sum>" + esc(r.summary) + "</td></tr>";
-      }).join("");
-      moreBtn.parentNode.hidden = hit.length <= limit;
+      }).join("") || '<tr><td colspan="11" class="empty">該当なし</td></tr>';
     }
+
+    function render() {
+      if (!loaded) return;
+      renderPager();
+      renderRows();
+    }
+
+    pagers.forEach(function (p, i) {
+      p.addEventListener("click", function (ev) {
+        var b = ev.target.closest("button[data-page]");
+        if (!b || b.disabled) return;
+        page = parseInt(b.dataset.page, 10);
+        render();
+        // 下側で切り替えたときは表の先頭に戻る
+        if (i === pagers.length - 1) pagers[0].scrollIntoView({ block: "start" });
+      });
+    });
 
     fetch(url).then(function (res) { return res.json(); }).then(function (data) {
       rows = data.map(function (r, i) { r.rank = i + 1; return r; });
+      loaded = true;
+      filter();
       render();
     }).catch(function () {
-      countEl.textContent = "全件データを読み込めませんでした";
+      pagers[0].textContent = "全件データを読み込めませんでした";
     });
-    q.addEventListener("input", function () { limit = 100; render(); });
-    tiers.forEach(function (t) { t.addEventListener("change", function () { limit = 100; render(); }); });
-    if (jvnOnly) jvnOnly.addEventListener("change", function () { limit = 100; render(); });
-    moreBtn.addEventListener("click", function () { limit += 200; render(); });
+    function refilter() { filter(); render(); }
+    q.addEventListener("input", refilter);
+    tiers.forEach(function (t) { t.addEventListener("change", refilter); });
+    if (jvnOnly) jvnOnly.addEventListener("change", refilter);
   });
 })();
