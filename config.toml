@@ -26,7 +26,8 @@ summary_chars = 200   # 概要の保存文字数
 base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 interval_no_key = 6.0    # APIキーなし：30秒に5回まで
 interval_with_key = 0.7  # APIキーあり：30秒に50回まで
-page_size = 2000
+page_size = 1000         # 1回の応答（約6MB）。大きいと受信が途中で切れやすい
+json_retries = 2         # 受信した JSON が壊れていたときに取り直す回数
 # 今月より前に公開されたCVE（再浮上・PoCタブ・週次）の詳細を個別取得する1回あたりの上限件数。
 # 取得結果は .cache/nvd に保存し、Actions のキャッシュで次回に持ち越す。
 lookup_limit = 150           # APIキーなし（6秒間隔なので約15分）

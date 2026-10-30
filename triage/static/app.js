@@ -2,9 +2,24 @@
 (function () {
   document.documentElement.classList.add("js");
 
-  // 期間のプルダウン：選んだらそのページへ移動
+  // 選んでいるタブは URL の「#tab=poc」に残す。日・週・月を切り替えても同じタブを開くため。
+  // （「#poc」のように要素の id と同じにすると、開いたときにその位置まで飛んでしまうので別の形にする）
+  function currentTab() {
+    var m = /^#(?:tab=)?([\w-]+)$/.exec(location.hash);
+    return m ? m[1] : "";
+  }
+  function withTab(url) {
+    var tab = currentTab();
+    return tab ? url.split("#")[0] + "#tab=" + tab : url;
+  }
+
+  // 期間のプルダウン：選んだらそのページへ移動（今のタブのまま）
   document.querySelectorAll("select[data-nav]").forEach(function (sel) {
-    sel.addEventListener("change", function () { location.href = sel.value; });
+    sel.addEventListener("change", function () { location.href = withTab(sel.value); });
+  });
+  // 日次・週次・月次のボタン：今のタブのまま移動
+  document.querySelectorAll("a[data-keep-tab]").forEach(function (a) {
+    a.addEventListener("click", function () { a.href = withTab(a.href); });
   });
 
   document.querySelectorAll("[data-tabs]").forEach(function (box) {
@@ -19,12 +34,11 @@
     buttons.forEach(function (b) {
       b.addEventListener("click", function () {
         show(b.dataset.tab);
-        // 読み込み時に書き換えるとその位置まで飛ぶので、クリック時だけ URL に残す
-        try { history.replaceState(null, "", "#" + b.dataset.tab); } catch (e) {}
+        try { history.replaceState(null, "", "#tab=" + b.dataset.tab); } catch (e) {}
       });
     });
-    var hash = location.hash.slice(1);
-    show(Array.prototype.some.call(buttons, function (b) { return b.dataset.tab === hash; }) ? hash : buttons[0].dataset.tab);
+    var tab = currentTab();
+    show(Array.prototype.some.call(buttons, function (b) { return b.dataset.tab === tab; }) ? tab : buttons[0].dataset.tab);
   });
 
   function esc(s) {
@@ -107,7 +121,7 @@
           "</td><td class=num>" + (r.cvss == null ? "—" : esc(r.cvss)) + "</td><td>" + ((r.cwe || []).map(nw).join(" ") || "—") +
           "</td><td>" + nw(r.kev || "—") + "</td><td>" + nw(r.poc || "—") + "</td><td>" + nw(r.published || "") +
           "</td><td class=sum>" + esc(r.summary) + "</td></tr>";
-      }).join("") || '<tr><td colspan="11" class="empty">該当なし</td></tr>';
+      }).join("") || '<tr><td colspan="11" class="empty">' + esc(rows.length ? "該当なし" : (box.dataset.empty || "該当なし")) + "</td></tr>";
     }
 
     function render() {

@@ -93,7 +93,7 @@ class Site:
             f'<li class="{"ok" if self.status.get(n) == "ok" else "ng"}" title="{e(self.status.get(n))}">'
             f'{e(n)}：{"取得成功" if self.status.get(n) == "ok" else "取得失敗"}</li>'
             for n in SOURCES)
-        latest = "".join(f'<a href="{root}{page_path(k, self.index[k][0]["key"])}">{KIND_LABELS[k]}</a>'
+        latest = "".join(f'<a data-keep-tab href="{root}{page_path(k, self.index[k][0]["key"])}">{KIND_LABELS[k]}</a>'
                          for k in KINDS if self.index.get(k))
         html = f"""<!doctype html>
 <html lang="ja">
@@ -138,7 +138,7 @@ class Site:
     def switcher(self, root: str, kind: str, key: str) -> str:
         """日次・週次・月次の切り替えボタンと、期間を選ぶプルダウン。"""
         seg = "".join(
-            f'<a href="{root}{page_path(k, self.index[k][0]["key"])}"'
+            f'<a data-keep-tab href="{root}{page_path(k, self.index[k][0]["key"])}"'
             f'{" class=on aria-current=true" if k == kind else ""}>{KIND_LABELS[k]}</a>'
             for k in KINDS if self.index.get(k))
 
@@ -159,6 +159,20 @@ class Site:
         return (f'<div class="switcher"><div class="seg" role="group" aria-label="集計の単位">{seg}</div>'
                 f'<label class="sel">期間を選ぶ <select data-nav aria-label="期間を選ぶ">{opts}</select></label>'
                 f'<noscript><a href="{root}archive.html">期間の一覧</a></noscript></div>')
+
+    @staticmethod
+    def updated_line(data: dict) -> str:
+        """切り替えのすぐ下に出す、このページのデータの更新日時（と、前回分を表示しているときの注意）。"""
+        if data.get("final"):
+            line = f"更新日時：{e(data.get('finalized_at') or data['as_of'])}（日本時間・確定）"
+        else:
+            line = f"更新日時：{e(data.get('fetched_at') or '—')}（日本時間）"
+        out = f'<p class="data-updated">{line}</p>'
+        fb = data.get("fallback")
+        if fb:
+            out += (f'<div class="notice">今回（{e(fb["failed_at"])}）の取得に失敗したため、'
+                    f'前回（{e(data.get("fetched_at"))}）取得したデータを表示しています。</div>')
+        return out
 
     @staticmethod
     def source_notices(data: dict) -> str:
@@ -228,12 +242,15 @@ class Site:
         tier_boxes = "".join(f'<label><input type="checkbox" name="tier" value="{t}" checked> {t}</label>'
                              for t in TIERS)
         pager = '<nav class="pager" aria-label="ページ切り替え"></nav>'
+        nvd_failed = data.get("sources", {}).get("NVD", "ok") != "ok"
+        empty = ("NVD の取得に失敗したため、この回は表示できません（次回の実行で取り直します）"
+                 if nvd_failed and not data["main"] else "該当なし")
         ranking = f"""
 <p class="lead">{word}（日本時間）に公開されたCVEを、ティア→EPSSの高い順に並べています。</p>
 <h2>上位{top_n}件</h2>
-{f'<div class="cards">{cards}</div>' if cards else '<p class="empty">該当なし</p>'}
+{f'<div class="cards">{cards}</div>' if cards else f'<p class="empty">{e(empty)}</p>'}
 <h2>全件（検索・絞り込み）</h2>
-<div data-fulltable="{e(root + json_path)}">
+<div data-fulltable="{e(root + json_path)}" data-empty="{e(empty)}">
 <div class="filters">
 <input type="search" placeholder="CVE番号・概要・CWEで検索" aria-label="検索">
 <span>{tier_boxes}</span>
@@ -278,7 +295,6 @@ class Site:
 
         title = f"{data['label']}版" if kind == "monthly" else data["label"]
         body = f"""
-{self.switcher(root, kind, data["key"])}
 <h1>{e(title)} ランキング</h1>
 <p class="lead">{state}。EPSS {e(data.get("epss_date") or "—")} 時点（7日前比は {e(data.get("epss_prev_date") or "—")} との差）。</p>
 {note}
@@ -291,6 +307,8 @@ class Site:
 <button type="button" role="tab" data-tab="poc">PoC（{len(data["poc"])}）</button>
 <button type="button" role="tab" data-tab="movement">動き（{len(mv["kev_added"]) + len(mv["new_sa"])}）</button>
 </div>
+{self.switcher(root, kind, data["key"])}
+{self.updated_line(data)}
 <section class="tabpanel" id="ranking">{ranking}</section>
 <section class="tabpanel" id="resurfaced"><h2>{word}「再浮上」した古い脆弱性</h2>{resurfaced}</section>
 <section class="tabpanel" id="poc"><h2>{word}PoCが出たCVE</h2>{poc}</section>

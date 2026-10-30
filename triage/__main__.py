@@ -5,6 +5,7 @@
   --out           サイトの出力先（既定：_site）
   --archive       確定データの保存先（既定：archive。--sample のときは .cache/sample-archive）
   --no-finalize   日・週・月の確定をしない
+  --live-cache    途中経過の前回成功分の保存先（既定：.cache/live。--sample のときは .cache/sample-live）
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from . import archive, config, periods
+from . import archive, config, live as live_cache, periods
 from .build import build_period
 from .collect import Sources
 from .http import HttpFetcher
@@ -38,7 +39,7 @@ def parse_now(value: str | None) -> datetime:
 def make_sources(cfg: dict, args, now: datetime) -> Sources:
     if args.sample:
         from . import sample
-        fetcher = sample.SampleFetcher(sample.universe(), now)
+        fetcher = sample.SampleFetcher(sample.universe(), now, fail=set(args.sample_fail or []))
         tmp = Path(tempfile.mkdtemp(prefix="poc-sample-"))
         sample.write_poc_tree(sample.universe(), tmp, now)
         return Sources(cfg, fetcher, lambda: poc_src.scan(tmp), cache_dir=None, now=now)
@@ -70,10 +71,14 @@ def run(args) -> int:
 
     # 3. 今日・今週・今月（途中経過）を計算してページ生成
     live = {k: build_period(src, periods.of(k, today), today) for k in periods.KINDS}
+    # 取得に失敗した回は、同じ日・週・月の前回成功分を表示する
+    live_dir = Path(args.live_cache or (ROOT / ".cache" / ("sample-live" if args.sample else "live")))
+    live = live_cache.apply(live, src.required_ok(), stamp, dict(src.status), live_dir)
     generate(cfg, Path(args.out), live, archive.load_all(archive_dir), stamp, dict(src.status))
 
     for k, d in live.items():
-        print(f"{d['label']}（途中経過）：新規CVE {d['counts']['total']}件 {d['counts']['tiers']}")
+        note = f"（取得失敗のため {d['fetched_at']} 取得分を表示）" if d.get("fallback") else ""
+        print(f"{d['label']}（途中経過）：新規CVE {d['counts']['total']}件 {d['counts']['tiers']}{note}")
     print(f"確定：{len(written)}件 {' '.join(Path(w).name for w in written)}")
     print("データ源：" + " / ".join(f"{k}={v}" for k, v in src.status.items()))
     if src.nvd.lookups_skipped:
@@ -91,6 +96,9 @@ def main(argv=None) -> int:
     r.add_argument("--now", default=None)
     r.add_argument("--sample", action="store_true")
     r.add_argument("--no-finalize", action="store_true")
+    r.add_argument("--live-cache", default=None)
+    # 動作確認用：--sample のとき、指定したホストへの取得を失敗させる（例：services.nvd.nist.gov）
+    r.add_argument("--sample-fail", action="append", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
     return run(args)
 

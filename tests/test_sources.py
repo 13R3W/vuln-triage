@@ -1,3 +1,4 @@
+from http.client import IncompleteRead, RemoteDisconnected
 import io
 import json
 import tempfile
@@ -57,6 +58,30 @@ class NvdParseTest(unittest.TestCase):
             client2 = nvd.NvdClient(fetcher, cfg, cache_dir=d)
             client2.lookup(["CVE-2024-50001"])
             self.assertEqual(len(fetcher.calls), n)  # キャッシュから読む
+
+    def test_broken_json_is_refetched(self):
+        good = sample.SampleFetcher(sample.universe(), jst("2026-11-20T10:00"))
+        state = {"n": 0}
+
+        class Flaky:
+            def get(self, base, params=None, headers=None, interval=0.0):
+                state["n"] += 1
+                raw = good.get(base, params, headers, interval)
+                return raw[: len(raw) // 2] if state["n"] == 1 else raw  # 1回目は途中で切れた JSON
+
+        client = nvd.NvdClient(Flaky(), CFG["nvd"])
+        recs = client.published("2026-11-01T00:00:00.000+09:00", "2026-11-30T23:59:59.000+09:00")
+        self.assertIn("CVE-2026-41001", {r["id"] for r in recs})
+        self.assertEqual(state["n"], 2)
+
+    def test_broken_json_gives_up(self):
+        class Broken:
+            def get(self, *a, **k):
+                return b'{"vulnerabilities": ['
+
+        client = nvd.NvdClient(Broken(), CFG["nvd"])
+        with self.assertRaises(ValueError):
+            client.published("2026-11-01T00:00:00.000+09:00", "2026-11-30T23:59:59.000+09:00")
 
     def test_lookup_limit(self):
         fetcher = sample.SampleFetcher(sample.universe(), jst("2026-12-02T10:00"))
@@ -176,6 +201,38 @@ class HttpTest(unittest.TestCase):
 
         with mock.patch("urllib.request.urlopen", fake), self.assertRaises(http.FetchError):
             f.get("https://example.com/x")
+
+    def test_retry_on_incomplete_read(self):
+        # 実際に Actions で起きた「受信の途中切断」。リトライして取得できること
+        sleeps = []
+        f = http.HttpFetcher(retries=3, sleep=sleeps.append)
+        calls = {"n": 0}
+
+        class Truncated(io.BytesIO):
+            def read(self, *a):
+                raise IncompleteRead(b"x" * 10, 5)
+
+        def fake(req, timeout):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RemoteDisconnected("closed")
+            if calls["n"] == 2:
+                return Truncated(b"")  # 読み込み中に切れる
+            return io.BytesIO(b"ok")
+
+        with mock.patch("urllib.request.urlopen", fake):
+            self.assertEqual(f.get("https://example.com/x"), b"ok")
+        self.assertEqual(calls["n"], 3)
+
+    def test_incomplete_read_gives_up(self):
+        f = http.HttpFetcher(retries=1, sleep=lambda s: None)
+
+        def fake(req, timeout):
+            raise IncompleteRead(b"x", 5)
+
+        with mock.patch("urllib.request.urlopen", fake), self.assertRaises(http.FetchError) as cm:
+            f.get("https://example.com/x")
+        self.assertIn("IncompleteRead", str(cm.exception))
 
     def test_no_retry_on_404(self):
         f = http.HttpFetcher(retries=3, sleep=lambda s: None)

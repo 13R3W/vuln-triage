@@ -73,6 +73,7 @@ td.sum { min-width: 240px; color: var(--muted); overflow-wrap: anywhere; }
 .seg a.on { background: var(--link); color: var(--card); font-weight: 600; }
 .sel { font-size: 14px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; max-width: 100%; white-space: nowrap; }
 .sel select { flex: 1 1 auto; font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; max-width: 100%; min-width: 0; }
+.data-updated { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
 .pager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 10px 0; font-size: 14px; }
 .pager .range { color: var(--muted); }
 .pager .pages { display: flex; flex-wrap: wrap; gap: 4px; }

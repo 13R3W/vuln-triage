@@ -30,12 +30,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      # 古いCVEのNVD個別取得結果を次回に持ち越す（無料のActionsキャッシュ）
+      # 次回に持ち越すもの（無料のActionsキャッシュ）
+      #   .cache/nvd：古いCVEのNVD個別取得結果
+      #   .cache/live：今日・今週・今月の前回成功分（取得に失敗した回はこれを表示する）
       - uses: actions/cache@v4
         with:
-          path: .cache/nvd
-          key: nvd-${{ github.run_id }}
-          restore-keys: nvd-
+          path: |
+            .cache/nvd
+            .cache/live
+          key: triage-${{ github.run_id }}
+          restore-keys: |
+            triage-
+            nvd-
 
       - name: テスト
         run: python -m unittest discover -s tests -t .

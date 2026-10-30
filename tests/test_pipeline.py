@@ -324,6 +324,16 @@ class SiteTest(unittest.TestCase):
         index = (out / "index.html").read_text()
         self.assertIn('href="monthly/2026-12.html" class=on', index)
 
+    def test_nvd_failure_message(self):
+        now = jst("2026-11-20T10:00")
+        out = Path(tempfile.mkdtemp()) / "site"
+        src, _ = make_sources(now, fail={"services.nvd.nist.gov"})
+        live = {k: build_period(src, periods.of(k, now.date()), now.date()) for k in periods.KINDS}
+        generate(CFG, out, live, {k: [] for k in periods.KINDS}, "2026-11-20 10:00", dict(src.status))
+        html = (out / "index.html").read_text()
+        self.assertIn("NVD の取得に失敗したため、この回は表示できません", html)
+        self.assertIn('data-empty="NVD の取得に失敗したため', html)
+
     def test_preview_before_start_and_escaping(self):
         now = jst("2026-10-29T10:00")
         out = Path(tempfile.mkdtemp()) / "site"
