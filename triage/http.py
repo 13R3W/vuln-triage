@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import http.client
 import time
 import urllib.error
 import urllib.parse
@@ -66,6 +67,7 @@ class HttpFetcher:
                 error = f"HTTP {e.code}"
                 if 400 <= e.code < 500 and e.code not in (403, 408, 429):
                     break
-            except (urllib.error.URLError, TimeoutError, OSError) as e:
-                error = str(e)
+            except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as e:
+                # HTTPException：受信の途中切断（IncompleteRead）や相手からの切断（RemoteDisconnected）など
+                error = f"{type(e).__name__}: {e}"
         raise FetchError(f"{host}: {error}")

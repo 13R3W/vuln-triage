@@ -107,7 +107,7 @@
           "</td><td class=num>" + (r.cvss == null ? "—" : esc(r.cvss)) + "</td><td>" + ((r.cwe || []).map(nw).join(" ") || "—") +
           "</td><td>" + nw(r.kev || "—") + "</td><td>" + nw(r.poc || "—") + "</td><td>" + nw(r.published || "") +
           "</td><td class=sum>" + esc(r.summary) + "</td></tr>";
-      }).join("") || '<tr><td colspan="11" class="empty">該当なし</td></tr>';
+      }).join("") || '<tr><td colspan="11" class="empty">' + esc(rows.length ? "該当なし" : (box.dataset.empty || "該当なし")) + "</td></tr>";
     }
 
     function render() {

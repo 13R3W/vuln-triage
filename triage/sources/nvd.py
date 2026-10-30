@@ -68,7 +68,8 @@ class NvdClient:
                  summary_chars: int = 200):
         self.fetcher = fetcher
         self.base = cfg["base_url"]
-        self.page_size = int(cfg.get("page_size", 2000))
+        self.page_size = int(cfg.get("page_size", 1000))
+        self.json_retries = int(cfg.get("json_retries", 2))
         self.interval = float(cfg["interval_with_key"] if api_key else cfg["interval_no_key"])
         self.headers = {"apiKey": api_key} if api_key else {}
         self.lookup_limit = int(cfg.get("lookup_limit_with_key", 1000) if api_key else cfg.get("lookup_limit", 150))
@@ -79,8 +80,14 @@ class NvdClient:
         self.lookups_skipped = 0
 
     def _get(self, params: dict) -> dict:
-        raw = self.fetcher.get(self.base, params, headers=self.headers, interval=self.interval)
-        return json.loads(raw)
+        # 受信が途中で切れて JSON が壊れていることがあるので、そのときは同じページを取り直す
+        for attempt in range(self.json_retries + 1):
+            raw = self.fetcher.get(self.base, params, headers=self.headers, interval=self.interval)
+            try:
+                return json.loads(raw)
+            except ValueError:
+                if attempt == self.json_retries:
+                    raise
 
     def published(self, start: str, end: str) -> list[dict]:
         """pubStartDate〜pubEndDate（最大120日）に公開された CVE（取り下げ分を除く）。"""

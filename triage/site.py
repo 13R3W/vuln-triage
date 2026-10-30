@@ -228,12 +228,15 @@ class Site:
         tier_boxes = "".join(f'<label><input type="checkbox" name="tier" value="{t}" checked> {t}</label>'
                              for t in TIERS)
         pager = '<nav class="pager" aria-label="ページ切り替え"></nav>'
+        nvd_failed = data.get("sources", {}).get("NVD", "ok") != "ok"
+        empty = ("NVD の取得に失敗したため、この回は表示できません（次回の実行で取り直します）"
+                 if nvd_failed and not data["main"] else "該当なし")
         ranking = f"""
 <p class="lead">{word}（日本時間）に公開されたCVEを、ティア→EPSSの高い順に並べています。</p>
 <h2>上位{top_n}件</h2>
-{f'<div class="cards">{cards}</div>' if cards else '<p class="empty">該当なし</p>'}
+{f'<div class="cards">{cards}</div>' if cards else f'<p class="empty">{e(empty)}</p>'}
 <h2>全件（検索・絞り込み）</h2>
-<div data-fulltable="{e(root + json_path)}">
+<div data-fulltable="{e(root + json_path)}" data-empty="{e(empty)}">
 <div class="filters">
 <input type="search" placeholder="CVE番号・概要・CWEで検索" aria-label="検索">
 <span>{tier_boxes}</span>
