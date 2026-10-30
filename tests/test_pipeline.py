@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import unittest
 from datetime import date
@@ -314,6 +315,33 @@ class SiteTest(unittest.TestCase):
         archive_html = (out / "archive.html").read_text()
         for link in ("weekly/2026-W45.html", "monthly/2026-11.html", "daily/2026-11-03.html"):
             self.assertIn(link, archive_html)
+
+    def test_summary_tiles_fixed(self):
+        now = jst("2026-12-02T10:00")
+        out, _ = self.build(now)
+        src, _ = make_sources(now)
+        day = build_period(src, periods.day_of(now.date()), now.date())
+        month = build_period(src, periods.month_of(now.date()), now.date())
+
+        def tiles(path):
+            html = (out / path).read_text()
+            a = html.index('<div class="summary-row">')
+            return html[a:html.index("</div>\n", html.index('<div data-tabs>') - 20)]
+
+        pages = ["index.html", "daily/2026-12-02.html", "daily/2026-11-03.html", "weekly/2026-W45.html",
+                 "weekly/2026-W49.html", "monthly/2026-11.html", "monthly/2026-12.html"]
+        first = tiles(pages[0])
+        for p in pages[1:]:
+            self.assertEqual(tiles(p), first, p)  # どのページでも同じ
+        labels = ["今日公開", "今月公開", "tier-S", "tier-A", "tier-B", "JVN未掲載", "KEV追加", "新たにS/A"]
+        pos = [first.index(l) for l in labels]
+        self.assertEqual(pos, sorted(pos))  # 左から指定の並び
+        self.assertNotIn("tier-C", first)
+        self.assertNotIn("今週公開", first)
+        c = month["counts"]
+        values = [day["counts"]["total"], c["total"], c["tiers"]["S"], c["tiers"]["A"], c["tiers"]["B"],
+                  c["jvn_missing"], len(month["movement"]["kev_added"]), len(month["movement"]["new_sa"])]
+        self.assertEqual(re.findall(r"<b>([^<]*)</b>", first), [str(v) for v in values])
 
     def test_switcher(self):
         out, _ = self.build(jst("2026-12-02T10:00"))

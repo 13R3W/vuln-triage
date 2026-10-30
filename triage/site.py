@@ -75,12 +75,13 @@ def data_path(kind: str, key: str) -> str:
 
 
 class Site:
-    def __init__(self, cfg: dict, out_dir: Path, index: dict[str, list[dict]]):
+    def __init__(self, cfg: dict, out_dir: Path, index: dict[str, list[dict]], tiles: str = ""):
         """index：種類ごとの期間一覧（新しい順）。各要素は {"key", "label", "final"}。"""
         self.cfg = cfg
         self.out = Path(out_dir)
         self.name = cfg["site"]["name"]
         self.index = index
+        self.tiles = tiles  # 全ページ共通の件数タイル（summary_tiles）
 
     # ---- 共通レイアウト ----
     def page(self, rel_path: str, title: str, body: str) -> None:
@@ -209,15 +210,7 @@ class Site:
         word = PERIOD_WORD[kind][0 if data.get("final") else 1]
         jvn_failed = data.get("sources", {}).get("JVN", "ok") != "ok"
         top_n = int(self.cfg["display"].get("top_cards", 20))
-        c = data["counts"]
         mv = data["movement"]
-        jm = c.get("jvn_missing")
-        stats = (f'<div class="stat"><b>{c["total"]}</b><span>{word}公開の新規CVE</span></div>'
-                 + "".join(f'<div class="stat"><b>{c["tiers"][t]}</b><span>{tier_badge(t)} ティア</span></div>'
-                           for t in TIERS)
-                 + f'<div class="stat"><b>{"—" if jm is None else jm}</b><span>JVN未掲載</span></div>'
-                 f'<div class="stat"><b>{len(mv["kev_added"])}</b><span>KEV追加</span></div>'
-                 f'<div class="stat"><b>{len(mv["new_sa"])}</b><span>新たにS/A入り</span></div>')
 
         cards = "".join(self.card(i + 1, r, jvn_failed) for i, r in enumerate(data["main"][:top_n]))
         tier_boxes = "".join(f'<label><input type="checkbox" name="tier" value="{t}" checked> {t}</label>'
@@ -278,7 +271,7 @@ class Site:
         body = f"""
 <h1>{e(title)} ランキング</h1>
 {self.source_notices(data)}
-<div class="summary-row">{stats}</div>
+<div class="summary-row">{self.tiles}</div>
 <div data-tabs>
 <div class="tabs" role="tablist">
 <button type="button" role="tab" data-tab="ranking">ランキング</button>
@@ -365,6 +358,26 @@ class Site:
         self.page("method.html", "この順位の付け方", body)
 
 
+def summary_tiles(live: dict[str, dict]) -> str:
+    """ページ上部の件数タイル。どのページでも同じ並び・同じ値（今日・今月の途中経過）にする。
+
+    左から：今日公開・今月公開・S・A・B・JVN未掲載・KEV追加・新たにS/A入り（今日公開以外は今月の件数）。
+    """
+    day, month = live.get("daily"), live.get("monthly")
+    if not (day and month):
+        return ""
+    c = month["counts"]
+    jm = c.get("jvn_missing")
+    # (値, 表示する見出し, マウスを載せたときの説明)
+    items = [(day["counts"]["total"], "今日公開", "今日（日本時間）公開の新規CVE"),
+             (c["total"], "今月公開", "今月公開の新規CVE")]
+    items += [(c["tiers"][t], f"{tier_badge(t)}ティア", f"今月公開のうち {t} ティア") for t in ("S", "A", "B")]
+    items += [("—" if jm is None else jm, "JVN未掲載", "今月公開のうち JVN 未掲載（JVN 取得失敗時は —）"),
+              (len(month["movement"]["kev_added"]), "KEV追加", "今月 KEV に追加された CVE"),
+              (len(month["movement"]["new_sa"]), "新たにS/A", "今月新たに S/A ティアに入った CVE")]
+    return "".join(f'<div class="stat" title="{e(tip)}"><b>{v}</b><span>{label}</span></div>' for v, label, tip in items)
+
+
 def generate(cfg: dict, out_dir: Path, live: dict[str, dict], archives: dict[str, list[dict]]) -> None:
     """live：種類ごとの途中経過（今日・今週・今月）。archives：種類ごとの確定データ。"""
     out_dir = Path(out_dir)
@@ -380,7 +393,7 @@ def generate(cfg: dict, out_dir: Path, live: dict[str, dict], archives: dict[str
         index[kind] = [{"key": d["key"], "label": d["label"], "final": d.get("final", False)} for d in items]
         pages.extend(items)
 
-    site = Site(cfg, out_dir, index)
+    site = Site(cfg, out_dir, index, summary_tiles(live))
     site.copy_static()
     for d in pages:
         jp = data_path(d["kind"], d["key"])

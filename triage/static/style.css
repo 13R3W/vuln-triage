@@ -28,10 +28,12 @@ h2 { font-size: 18px; margin: 28px 0 8px; }
 .lead { color: var(--muted); margin: 0 0 12px; font-size: 14px; }
 .notice { background: var(--warn-bg); color: var(--warn-fg); padding: 8px 12px; border-radius: 8px; margin: 12px 0; font-size: 14px; }
 .notice.err { background: var(--err-bg); color: var(--err-fg); }
-.summary-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-.stat { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; min-width: 72px; }
+/* 件数タイル：8つを等幅で並べ、日・週・月を切り替えても位置と幅が変わらないようにする */
+.summary-row { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-width: 0; }
 .stat b { display: block; font-size: 20px; }
-.stat span { font-size: 12px; color: var(--muted); }
+.stat > span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.stat > span .tier { margin-right: 2px; font-size: 11px; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-top: 16px; overflow-x: auto; }
 .tabs button {
   font: inherit; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted);
@@ -81,6 +83,11 @@ details { margin: 4px 0; }
 details summary { cursor: pointer; }
 .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
 ul.plain { padding-left: 20px; }
+@media (max-width: 760px) {
+  .summary-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stat { padding: 6px 8px; }
+  .stat > span { font-size: 11px; }
+}
 @media (max-width: 480px) {
   body { font-size: 14px; }
   .cards { grid-template-columns: 1fr; }
