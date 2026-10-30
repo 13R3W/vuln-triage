@@ -93,7 +93,7 @@ class Site:
             f'<li class="{"ok" if self.status.get(n) == "ok" else "ng"}" title="{e(self.status.get(n))}">'
             f'{e(n)}：{"取得成功" if self.status.get(n) == "ok" else "取得失敗"}</li>'
             for n in SOURCES)
-        latest = "".join(f'<a href="{root}{page_path(k, self.index[k][0]["key"])}">{KIND_LABELS[k]}</a>'
+        latest = "".join(f'<a data-keep-tab href="{root}{page_path(k, self.index[k][0]["key"])}">{KIND_LABELS[k]}</a>'
                          for k in KINDS if self.index.get(k))
         html = f"""<!doctype html>
 <html lang="ja">
@@ -138,7 +138,7 @@ class Site:
     def switcher(self, root: str, kind: str, key: str) -> str:
         """日次・週次・月次の切り替えボタンと、期間を選ぶプルダウン。"""
         seg = "".join(
-            f'<a href="{root}{page_path(k, self.index[k][0]["key"])}"'
+            f'<a data-keep-tab href="{root}{page_path(k, self.index[k][0]["key"])}"'
             f'{" class=on aria-current=true" if k == kind else ""}>{KIND_LABELS[k]}</a>'
             for k in KINDS if self.index.get(k))
 
@@ -295,8 +295,6 @@ class Site:
 
         title = f"{data['label']}版" if kind == "monthly" else data["label"]
         body = f"""
-{self.switcher(root, kind, data["key"])}
-{self.updated_line(data)}
 <h1>{e(title)} ランキング</h1>
 <p class="lead">{state}。EPSS {e(data.get("epss_date") or "—")} 時点（7日前比は {e(data.get("epss_prev_date") or "—")} との差）。</p>
 {note}
@@ -309,6 +307,8 @@ class Site:
 <button type="button" role="tab" data-tab="poc">PoC（{len(data["poc"])}）</button>
 <button type="button" role="tab" data-tab="movement">動き（{len(mv["kev_added"]) + len(mv["new_sa"])}）</button>
 </div>
+{self.switcher(root, kind, data["key"])}
+{self.updated_line(data)}
 <section class="tabpanel" id="ranking">{ranking}</section>
 <section class="tabpanel" id="resurfaced"><h2>{word}「再浮上」した古い脆弱性</h2>{resurfaced}</section>
 <section class="tabpanel" id="poc"><h2>{word}PoCが出たCVE</h2>{poc}</section>
