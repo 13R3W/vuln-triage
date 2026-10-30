@@ -343,6 +343,17 @@ class SiteTest(unittest.TestCase):
                   c["jvn_missing"], len(month["movement"]["kev_added"]), len(month["movement"]["new_sa"])]
         self.assertEqual(re.findall(r"<b>([^<]*)</b>", first), [str(v) for v in values])
 
+    def test_no_period_heading(self):
+        # 日・週・月で変わる見出し（例「2026年第45週（11/2〜11/8） ランキング」）は出さない。ブラウザのタブ名には残す
+        out, _ = self.build(jst("2026-12-02T10:00"))
+        for path, name in (("index.html", "2026年12月版"), ("daily/2026-11-03.html", "2026年11月3日（火）"),
+                           ("weekly/2026-W45.html", "2026年第45週（11/2〜11/8）"), ("monthly/2026-11.html", "2026年11月版")):
+            html = (out / path).read_text()
+            self.assertNotIn("<h1>", html, path)
+            self.assertNotIn(" ランキング</h1>", html, path)
+            self.assertIn(f"<title>{name} | ", html, path)
+        self.assertIn("<h1>アーカイブ</h1>", (out / "archive.html").read_text())
+
     def test_switcher(self):
         out, _ = self.build(jst("2026-12-02T10:00"))
         day = (out / "daily" / "2026-11-03.html").read_text()

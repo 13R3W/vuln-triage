@@ -268,8 +268,8 @@ class Site:
 {self.table(["ティア", "CVE", "PoC初出日", "EPSS", "公開日", "CWE", "概要"], move_rows(mv["new_sa"], "poc"), (3,))}"""
 
         title = f"{data['label']}版" if kind == "monthly" else data["label"]
+        # 見出し（期間名）は日・週・月を切り替えるたびに変わるので出さない。期間はタブ下のプルダウンで分かる
         body = f"""
-<h1>{e(title)} ランキング</h1>
 {self.source_notices(data)}
 <div class="summary-row">{self.tiles}</div>
 <div data-tabs>
