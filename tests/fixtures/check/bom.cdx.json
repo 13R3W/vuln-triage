@@ -1,0 +1,7 @@
+{ "bomFormat": "CycloneDX", "specVersion": "1.5",
+  "components": [
+    { "type": "library", "name": "lodash", "version": "4.17.15", "purl": "pkg:npm/lodash@4.17.15" },
+    { "type": "library", "name": "core", "purl": "pkg:npm/%40babel/core@7.0.0",
+      "components": [ { "type": "library", "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1" } ] },
+    { "type": "library", "purl": "pkg:deb/debian/openssl@1.1.1n-0?arch=amd64" }
+  ] }

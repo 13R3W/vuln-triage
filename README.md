@@ -33,6 +33,18 @@
 - 切り替えのすぐ下に、そのページのデータの**更新日時**が出ます。今日・今週・今月の更新でデータが取れなかったときは、
   同じ日・週・月で前回取れたデータを表示し、その旨を注意書きで出します（前回分は Actions のキャッシュに保存しています）
 
+## 自分の環境をチェック
+
+ヘッダーの「自分の環境をチェック」から、自分のファイルを渡して、当てはまる CVE を優先度（S→A→B→C）の順に、対策つきで出せます。
+
+- 渡せるファイル：使っている部品の一覧（package-lock.json、requirements.txt、poetry.lock、Pipfile.lock、go.sum、go.mod、pom.xml、
+  Gemfile.lock、composer.lock、Cargo.lock、SBOM〔CycloneDX・SPDX の JSON〕）、または CVE 番号が書いてあるファイル（脆弱性スキャンの結果など）
+- ファイルは見る人のブラウザの中で読むだけで、どこにも送らず、保存もしません。部品の一覧のときは、部品の名前とバージョンだけを
+  OSV.dev（Google が運営する無料の脆弱性データベース）に、見る人のブラウザから問い合わせます
+- 優先度は、今日・今週・今月に限らず昔の CVE も含めて判定します（全CVEの KEV・PoC・EPSS を毎回の実行でサイトに置いています）
+- 対策は「○○ を 1.2.3 以上に更新」（OSV.dev に登録された直ったバージョンから）と、KEV 掲載分は CISA が求める対応と期限です
+- AI は使っていません。結果は CSV で保存できます
+
 ---
 
 ## GitHub 側で必要な設定
@@ -106,6 +118,12 @@ Python 3.11 以上が必要です（追加のパッケージは不要）。
 python -m unittest discover -s tests -t .
 ```
 
+「自分の環境をチェック」の JS のテスト（Node.js があれば追加のパッケージは不要）：
+
+```bash
+node --test tests/js/*.test.cjs
+```
+
 サンプルデータでサイトを生成して確認する（`--now` で日時を指定すると、日・週・月の確定も確認できます）：
 
 ```bash
@@ -155,9 +173,10 @@ triage/                     収集・判定・ページ生成（Python）
   sources/                  データ源ごとの取得（NVD・KEV・EPSS・PoC・JVN）
   build.py                  日次・週次・月次データの組み立て（3種類とも同じ関数）
   archive.py                日・週・月の確定
-  site.py, static/          静的サイトの生成
+  site.py, static/          静的サイトの生成（static/check-core.js・check.js は「自分の環境をチェック」）
+  index.py                  「自分の環境をチェック」用の全CVE索引
   sample.py                 サンプルデータと、各 API を真似る取得器（テスト・動作確認用）
-tests/                      テスト（unittest）
+tests/                      テスト（unittest。tests/js は Node の JS テスト、tests/fixtures/check は各形式の見本ファイル）
 archive/daily/, weekly/, monthly/   確定した日・週・月のデータ（ワークフローがコミット）
 .github/workflows/triage.yml
 ```

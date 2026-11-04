@@ -215,7 +215,10 @@ class SampleFetcher:
     # ---- KEV ----
     def _kev(self) -> bytes:
         today = self.now.date().isoformat()
-        vulns = [{"cveID": e["id"], "dateAdded": e["kev"], "vendorProject": "Example"}
+        vulns = [{"cveID": e["id"], "dateAdded": e["kev"], "vendorProject": "Example",
+                  "dueDate": (date.fromisoformat(e["kev"]) + timedelta(days=21)).isoformat(),
+                  "requiredAction": "Apply mitigations per vendor instructions or discontinue use of the product "
+                                    "if mitigations are unavailable."}
                  for e in self.entries if e.get("kev") and e["kev"] <= today]
         return json.dumps({"title": "CISA Catalog of Known Exploited Vulnerabilities", "catalogVersion": today,
                            "count": len(vulns), "vulnerabilities": vulns}).encode()

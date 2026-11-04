@@ -47,6 +47,18 @@ class EpssClient:
                 out[row["cve"]] = float(row["epss"])
         return out
 
+    def all_scores(self, date: str) -> dict[str, float]:
+        """その日 EPSS がある CVE 全件（約30万件、1万件ずつ取得）。{CVE番号: EPSS}"""
+        out: dict[str, float] = {}
+        offset = 0
+        while True:
+            data = self._get({"epss-gt": "0", "date": date, "limit": self.page_size, "offset": offset})
+            rows = data.get("data", [])
+            out.update((r["cve"], float(r["epss"])) for r in rows)
+            offset += len(rows)
+            if not rows or offset >= int(data.get("total", 0)):
+                return out
+
     def above(self, threshold: float, date: str) -> set[str]:
         """その日 EPSS が threshold 以上だった CVE 全件。"""
         out: set[str] = set()

@@ -17,7 +17,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from . import archive, config, live as live_cache, periods
+from . import archive, config, index, live as live_cache, periods
 from .build import build_period
 from .collect import Sources
 from .http import HttpFetcher
@@ -75,6 +75,9 @@ def run(args) -> int:
     live_dir = Path(args.live_cache or (ROOT / ".cache" / ("sample-live" if args.sample else "live")))
     live = live_cache.apply(live, src.required_ok(), stamp, dict(src.status), live_dir)
     generate(cfg, Path(args.out), live, archive.load_all(archive_dir))
+    # 4. 「自分の環境をチェック」用の全CVE索引（作れなかった回は前回分）
+    index_dir = ROOT / ".cache" / ("sample-index" if args.sample else "index")
+    index.publish(index.build(src, stamp, index_dir.with_name(index_dir.name + "-epss")), Path(args.out), index_dir)
 
     for k, d in live.items():
         note = f"（取得失敗のため {d['fetched_at']} 取得分を表示）" if d.get("fallback") else ""

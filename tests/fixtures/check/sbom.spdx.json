@@ -1,0 +1,4 @@
+{ "spdxVersion": "SPDX-2.3", "packages": [
+  { "name": "Django", "externalRefs": [ { "referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": "pkg:pypi/Django@3.2.0" } ] },
+  { "name": "gin", "externalRefs": [ { "referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": "pkg:golang/github.com/gin-gonic/gin@v1.6.0" } ] }
+] }

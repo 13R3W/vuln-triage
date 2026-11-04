@@ -1,0 +1,8 @@
+{
+  "name": "old-app",
+  "lockfileVersion": 1,
+  "dependencies": {
+    "axios": { "version": "0.21.0", "dependencies": { "follow-redirects": { "version": "1.13.0" } } },
+    "mine": { "version": "file:../mine" }
+  }
+}

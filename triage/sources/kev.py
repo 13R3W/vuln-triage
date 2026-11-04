@@ -6,6 +6,7 @@ import json
 
 
 def parse(raw: bytes) -> dict[str, str]:
+    """{CVE番号: KEV追加日}"""
     data = json.loads(raw)
     out = {}
     for v in data.get("vulnerabilities", []):
@@ -15,6 +16,13 @@ def parse(raw: bytes) -> dict[str, str]:
     return out
 
 
-def fetch(fetcher, cfg: dict) -> dict[str, str]:
-    """毎回全件を取得し、{CVE番号: KEV追加日} を返す。"""
-    return parse(fetcher.get(cfg["url"]))
+def parse_actions(raw: bytes) -> dict[str, list[str]]:
+    """{CVE番号: [KEV追加日, 対応期限, 求められる対応]}（「自分の環境をチェック」で対策として表示する）"""
+    data = json.loads(raw)
+    out = {}
+    for v in data.get("vulnerabilities", []):
+        cve = (v.get("cveID") or "").strip().upper()
+        if cve and v.get("dateAdded"):
+            out[cve] = [v["dateAdded"][:10], (v.get("dueDate") or "")[:10], " ".join((v.get("requiredAction") or "").split())]
+    return out
+
