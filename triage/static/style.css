@@ -98,3 +98,20 @@ ul.plain { padding-left: 20px; }
   h1 { font-size: 19px; }
 }
 main.wrap { padding-bottom: 40px; }
+/* 自分の環境をチェック */
+#check { margin: 16px 0 24px; }
+.drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 28px 16px; border: 2px dashed var(--line); border-radius: 12px; background: var(--card); cursor: pointer; text-align: center; }
+.drop.over { border-color: var(--link); }
+.drop input[type="file"] { max-width: 100%; }
+.drop-title { font-weight: 600; }
+.drop .names { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.paste { margin: 12px 0; }
+.paste textarea { width: 100%; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); }
+#check button.run, #check button.csv { font: inherit; padding: 8px 24px; border-radius: 8px; border: 1px solid var(--link); background: var(--link); color: var(--card); font-weight: 600; cursor: pointer; }
+#check button.csv { background: var(--card); color: var(--link); padding: 6px 16px; }
+#check button:disabled { opacity: .5; cursor: default; }
+.status { font-size: 14px; color: var(--muted); min-height: 1.6em; }
+.status.err { color: var(--err-fg); }
+.check-tiles { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.kev-act { color: var(--muted); font-size: 12px; }
+@media (max-width: 760px) { .check-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

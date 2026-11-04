@@ -84,7 +84,7 @@ class Site:
         self.tiles = tiles  # 全ページ共通の件数タイル（summary_tiles）
 
     # ---- 共通レイアウト ----
-    def page(self, rel_path: str, title: str, body: str) -> None:
+    def page(self, rel_path: str, title: str, body: str, scripts: tuple[str, ...] = ()) -> None:
         root = "../" * rel_path.count("/")
         html = f"""<!doctype html>
 <html lang="ja">
@@ -98,12 +98,13 @@ class Site:
 <body>
 <header class="site"><div class="wrap">
 <a class="name" href="{root}index.html">{e(self.name)}</a>
-<nav><a href="{root}archive.html">アーカイブ</a><a href="{root}method.html">この順位の付け方</a></nav>
+<nav><a href="{root}check.html">自分の環境をチェック</a><a href="{root}archive.html">アーカイブ</a><a href="{root}method.html">この順位の付け方</a></nav>
 </div></header>
 <main class="wrap">
 {body}
 </main>
 <script src="{root}assets/app.js"></script>
+{"".join(f'<script src="{root}assets/{s}"></script>' for s in scripts)}
 </body>
 </html>
 """
@@ -315,6 +316,47 @@ class Site:
         self.page("archive.html", "アーカイブ", body)
 
     # ---- この順位の付け方 ----
+    def check(self) -> None:
+        """自分の環境をチェック：見る人のファイルと全CVE索引を照らし合わせる（処理は check.js）。"""
+        th = self.cfg["tiers"]
+        body = f"""
+<h1>自分の環境をチェック</h1>
+<p class="lead">使っている部品の一覧や、脆弱性スキャンの結果などのファイルを渡すと、当てはまる CVE を優先度（S→A→B→C）の順に、対策つきで出します。
+今日・今週・今月の分だけでなく、昔の CVE も含めて照らし合わせます。</p>
+<div class="notice">ファイルは<b>このブラウザの中で読むだけ</b>で、どこにも送らず、保存もしません。
+部品の一覧のときは、<b>部品の名前とバージョンだけ</b>を OSV.dev（Google が運営する無料の脆弱性データベース）に問い合わせます。</div>
+<div id="check" data-root="">
+<label class="drop">
+<input type="file" multiple>
+<span class="drop-title">ここにファイルをドラッグ、またはクリックして選ぶ（複数可）</span>
+<span class="names">まだ選ばれていません</span>
+</label>
+<details class="paste"><summary>ファイルの代わりに内容を貼り付ける</summary>
+<textarea rows="8" placeholder="例：requirements.txt の中身、CVE 番号の一覧など"></textarea>
+</details>
+<p><button type="button" class="run">調べる</button></p>
+<p class="status" role="status" aria-live="polite"></p>
+<div class="results"></div>
+</div>
+<h2>読めるファイル</h2>
+{self.table(["種類", "ファイル"], [
+            ["部品の一覧（OSV.dev で照合）",
+             "package-lock.json（npm）、requirements.txt・poetry.lock・Pipfile.lock（Python）、go.sum・go.mod（Go）、"
+             "pom.xml（Java）、Gemfile.lock（Ruby）、composer.lock（PHP）、Cargo.lock（Rust）、"
+             "SBOM（CycloneDX JSON・SPDX JSON）"],
+            ["CVE 番号の一覧", "上のどれにも当たらないテキスト・CSV・JSON は、中に書いてある CVE 番号（CVE-2024-12345 の形）を全部拾います。"
+             "Trivy・Grype・Nessus などの脆弱性スキャンの結果もそのまま渡せます"],
+        ])}
+<h2>判定のしかた</h2>
+<ul class="plain">
+<li>優先度はこのサイトのランキングと同じ規則です：S＝KEV 掲載、A＝PoC あり かつ EPSS ≥ {th["a_epss"] * 100:g}%、B＝PoC あり または EPSS ≥ {th["b_epss"] * 100:g}%、C＝それ以外。同じティアの中は EPSS の高い順です。</li>
+<li>対策は、OSV.dev に登録されている「直ったバージョン」から「○○ を 1.2.3 以上に更新」と出します。KEV に載っているものは、CISA が示す対応内容と期限（英語の原文）も出します。</li>
+<li>AI は使っていません。データベースに載っている情報をそのまま照らし合わせています。データベースに載っていない脆弱性（自作のソフトなど）は出ません。</li>
+<li>バージョンの比べ方は数字の並びで比べる簡易なものです。「○○以上に更新」は目安として、各部品の公式情報も確認してください。</li>
+</ul>
+"""
+        self.page("check.html", "自分の環境をチェック", body, scripts=("check-core.js", "check.js"))
+
     def method(self) -> None:
         th = self.cfg["tiers"]
         a, b = th["a_epss"] * 100, th["b_epss"] * 100
@@ -402,5 +444,6 @@ def generate(cfg: dict, out_dir: Path, live: dict[str, dict], archives: dict[str
         if d is live.get("monthly"):
             site.period_page("index.html", d, jp)
     site.archive(archives)
+    site.check()
     site.method()
     (out_dir / ".nojekyll").write_text("", encoding="utf-8")

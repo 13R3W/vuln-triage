@@ -1,0 +1,6 @@
+# 本番用
+Django==3.2.0
+requests[security]==2.25.1 ; python_version >= "3.8"
+urllib3>=1.26        # 版が固定されていないので読まない
+-r other.txt
+PyYAML===5.3

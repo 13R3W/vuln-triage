@@ -32,6 +32,7 @@ class Sources:
         self.epss_client = epss_src.EpssClient(fetcher, cfg["epss"])
         self.status: dict[str, str] = {name: "ok" for name in SOURCES}
         self.kev: dict[str, str] = {}
+        self.kev_actions: dict[str, list[str]] = {}  # {CVE番号: [KEV追加日, 対応期限, 求められる対応]}
         self.poc: dict[str, dict] = {}
         self.epss_latest: str | None = None
         self.now = now  # 途中経過の期間で、NVD の検索範囲の終わりをここまでにする
@@ -56,7 +57,9 @@ class Sources:
     # ---- 毎回まとめて取るもの ----
     def load(self) -> None:
         try:
-            self.kev = kev_src.fetch(self.fetcher, self.cfg["kev"])
+            raw = self.fetcher.get(self.cfg["kev"]["url"])
+            self.kev = kev_src.parse(raw)
+            self.kev_actions = kev_src.parse_actions(raw)
         except Exception as e:  # noqa: BLE001
             self.fail("KEV", e)
         try:

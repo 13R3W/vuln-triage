@@ -1,0 +1,1 @@
+{ "content-hash": "abc", "packages": [ { "name": "guzzlehttp/guzzle", "version": "v7.4.0" } ], "packages-dev": [ { "name": "phpunit/phpunit", "version": "9.5.0" } ] }

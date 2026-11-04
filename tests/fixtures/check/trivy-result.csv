@@ -1,0 +1,5 @@
+Target,Package,Vulnerability,Severity
+app,lodash,CVE-2020-8203,HIGH
+app,log4j-core,cve-2021-44228,CRITICAL
+app,lodash,CVE-2020-8203,HIGH
+os,openssl,CVE-2022-0778,HIGH
